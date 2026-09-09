@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>課程進度管理系統</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .month-selector {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .month-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255,255,255,0.3);
+            color: white;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .month-btn:hover, .month-btn.active {
+            background: white;
+            color: #764ba2;
+        }
+        .calendar {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .calendar-header div {
+            text-align: center;
+            font-weight: bold;
+            color: #333;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .calendar-body {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 10px;
+        }
+        .cal-row {
+            display: contents;
+        }
+        .cal-cell {
+            min-height: 120px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #fafafa;
+        }
+        .cal-cell:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+        }
+        .cal-cell.other-month {
+            opacity: 0.4;
+            background: #f0f0f0;
+        }
+        .cal-cell.weekend {
+            background: #fff3cd;
+        }
+        .cal-cell.today {
+            border-color: #28a745;
+            background: #d4edda;
+        }
+        .date-num {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+        .date-lunar {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 4px;
+        }
+        .date-note {
+            font-size: 0.75em;
+            color: #dc3545;
+            margin-top: 2px;
+        }
+        .class-entry {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 5px;
+            margin-top: 5px;
+            font-size: 0.85em;
+            word-break: break-all;
+        }
+        .class-entry .class-code {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .class-entry .delete-btn {
+            float: right;
+            cursor: pointer;
+            margin-left: 5px;
+            opacity: 0.7;
+        }
+        .class-entry .delete-btn:hover {
+            opacity: 1;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 {
+            color: #333;
+        }
+        .close-btn {
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            line-height: 1;
+        }
+        .close-btn:hover { color: #333; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: bold;
+        }
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .quick-classes {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .quick-class-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        .quick-class-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        .btn-export, .btn-import {
+            margin-top: 20px;
+            margin-right: 10px;
+        }
+        .stats-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .stats-panel h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+        .stat-item {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-item .code {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .stat-item .count {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .calendar-header,
+            .calendar-body {
+                grid-template-columns: repeat(5, 1fr);
+                gap: 5px;
+            }
+            .cal-cell {
+                min-height: 80px;
+                padding: 5px;
+            }
+            .date-num {
+                font-size: 1em;
+            }
+            .class-entry {
+                font-size: 0.75em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 課程進度管理系統</h1>
+            <p>115年上學期（9月~1月）</p>
+        </div>
+
+        <div class="month-selector" id="monthSelector"></div>
+
+        <div class="calendar">
+            <div class="calendar-header">
+                <div>一</div>
+                <div>二</div>
+                <div>三</div>
+                <div>四</div>
+                <div>五</div>
+                <div>六</div>
+                <div>日</div>
+            </div>
+            <div class="calendar-body" id="calendarBody"></div>
+        </div>
+
+        <button class="btn btn-export" onclick="exportData()">📥 匯出備份</button>
+        <button class="btn btn-import" onclick="document.getElementById('importFile').click()">📤 匯入備份</button>
+        <input type="file" id="importFile" accept=".json" onchange="importData(event)">
+
+        <div class="stats-panel">
+            <h3>📊 各班級課程統計</h3>
+            <div class="stats-grid" id="statsGrid"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">編輯課程進度</h2>
+                <span class="close-btn" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>班級代號（一鍵選取）</label>
+                <div class="quick-classes" id="quickClasses"></div>
+            </div>
+            <div class="form-group">
+                <label>自訂班級</label>
+                <input type="text" id="classCode" list="classList" placeholder="輸入班級代號，如：506">
+                <datalist id="classList"></datalist>
+            </div>
+            <div class="form-group">
+                <label>課程內容</label>
+                <textarea id="classContent" rows="3" placeholder="例如：作業社練P2~3，P23~24"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveEntry()">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let scheduleData = {};
+        let currentMonth = 9;
+        let currentYear = 2026; // 115年 = 2026年
+        let selectedDate = null;
+        const quickClasses = ['506', '605', '606', '609', '610'];
+
+        // 農曆數據（簡化版，實際應使用完整農曆轉換庫）
+        const lunarData = {
+            9: ['十九','二十','廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','八月小','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','秋分','十五 中秋節','十六','十七','十八','十九','二十'],
+            10: ['廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八 寒露','廿九','九月大','初二','初三','初四','初五','初六','初七','初八','初九 重陽節','初十','十一','十二','十三','十四 霜降','十五','十六 光復紀念日','十七','十八','十九','二十','二十一'],
+            11: ['廿三','廿四 複習考','廿五 複習考','廿六(文華期中考)','廿七 (文華期中考)','廿八','廿九 立冬','三十','十月大','初二','初三 5年級英文歌唱比賽','初四 運動會預演','初五','初六','初七','初八','初九','初十 小雪','十一','十二','十三','十四','十五 大雪','十六','十七','十八','十九','二十','二十一','二十二 冬至','二十三','二十四 光復節','二十五','二十六','二十七','二十八','二十九','三十'],
+            12: ['廿四','廿五','廿六','廿七','廿八','廿九 大雪','三十','十一月','初二','初三','初四','初五','初六','初七','初八','初九','初十','十一','十二','十三','十四 冬至','十五','十六','十七 元旦放假','十八','十九','二十','二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八','二十九','三十'],
+            1: ['廿五','廿六','廿七 複習考','廿八 複習考','廿九 複習考','三十 複習考','十二月 複習考','初二','初三','初四 複習考','初五(文華期末考)','初六(文華期末考)','初七','初八','初九','初十','十一','十二','十三 大寒','十四','十五','十六','十七 放寒假','十八','十九','二十','二十一','二十二','二十三','二十四','二十五','二十六','二十七','二十八','二十九','三十']
+        };
+
+        function init() {
+            loadData();
+            renderMonthSelector();
+            renderCalendar();
+            renderStats();
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('courseSchedule');
+            if (saved) scheduleData = JSON.parse(saved);
+        }
+
+        function saveData() {
+            localStorage.setItem('courseSchedule', JSON.stringify(scheduleData));
+            renderStats();
+        }
+
+        function renderMonthSelector() {
+            const container = document.getElementById('monthSelector');
+            container.innerHTML = '';
+            
+            const months = [
+                { value: 9, label: '115年9月' },
+                { value: 10, label: '115年10月' },
+                { value: 11, label: '115年11月' },
+                { value: 12, label: '115年12月' },
+                { value: 1, label: '116年1月' }
+            ];
+
+            months.forEach(m => {
+                const btn = document.createElement('button');
+                btn.className = 'month-btn' + (m.value === currentMonth ? ' active' : '');
+                btn.textContent = m.label;
+                btn.onclick = () => {
+                    currentMonth = m.value;
+                    renderMonthSelector();
+                    renderCalendar();
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function getLunarDay(day, month, year) {
+            const yearKey = year >= 2027 ? 1 : (year === 2026 ? month : null);
+            const lunarArr = lunarData[month];
+            if (lunarArr && day <= lunarArr.length) {
+                return lunarArr[day - 1];
+            }
+            return '';
+        }
+
+        function renderCalendar() {
+            const body = document.getElementById('calendarBody');
+            body.innerHTML = '';
+
+            // 計算月份的天數和起始星期
+            const firstDay = new Date(currentYear, currentMonth - 1, 1);
+            const lastDay = new Date(currentYear, currentMonth, 0);
+            const daysInMonth = lastDay.getDate();
+            
+            // 調整為周一開始（0=周日 -> 6, 1=周一 -> 0）
+            let startOffset = firstDay.getDay() - 1;
+            if (startOffset < 0) startOffset = 6;
+
+            // 找到上一個月的最後一天作為起始
+            const displayStart = new Date(firstDay);
+            displayStart.setDate(displayStart.getDate() - startOffset);
+
+            // 找到下一個月的最後一天作為結束（確保完整週）
+            const displayEnd = new Date(lastDay);
+            const endOffset = (7 - displayEnd.getDay() % 7) % 7;
+            displayEnd.setDate(displayEnd.getDate() + endOffset);
+
+            // 生成日曆格
+            let currentDate = new Date(displayStart);
+            while (currentDate <= displayEnd) {
+                const row = document.createElement('div');
+                row.className = 'cal-row';
+                
+                // 每行7個格子（周一到周日）
+                for (let i = 0; i < 7; i++) {
+                    const cell = createCell(currentDate);
+                    row.appendChild(cell);
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                body.appendChild(row);
+            }
+        }
+
+        function createCell(date) {
+            const cell = document.createElement('div');
+            const isCurrentMonth = date.getMonth() + 1 === currentMonth && date.getFullYear() === currentYear;
+            const dateKey = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+            
+            cell.className = 'cal-cell' + (isCurrentMonth ? '' : ' other-month');
+            
+            // 標記今天
+            const today = new Date();
+            if (date.toDateString() === today.toDateString()) {
+                cell.classList.add('today');
+            }
+
+            // 日期數字
+            const dateNum = document.createElement('div');
+            dateNum.className = 'date-num';
+            dateNum.textContent = isCurrentMonth ? date.getDate() : '';
+            cell.appendChild(dateNum);
+
+            // 農曆
+            if (isCurrentMonth) {
+                const lunar = document.createElement('div');
+                lunar.className = 'date-lunar';
+                lunar.textContent = getLunarDay(date.getDate(), currentMonth, currentYear);
+                cell.appendChild(lunar);
+            }
+
+            // 課程內容
+            if (isCurrentMonth && scheduleData[dateKey]) {
+                scheduleData[dateKey].forEach((entry, idx) => {
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'class-entry';
+                    entryDiv.innerHTML = `
+                        <span class="class-code">${entry.code}</span>${entry.content}
+                        <span class="delete-btn" onclick="deleteEntry(event, '${dateKey}', ${idx})">&times;</span>
+                    `;
+                    cell.appendChild(entryDiv);
+                });
+            }
+
+            cell.onclick = (e) => {
+                if (!e.target.classList.contains('delete-btn')) {
+                    openModal(dateKey);
+                }
+            };
+
+            return cell;
+        }
+
+        function openModal(dateKey) {
+            selectedDate = dateKey;
+            document.getElementById('editModal').classList.add('show');
+            document.getElementById('modalTitle').textContent = `${dateKey} 編輯課程進度`;
+            document.getElementById('classCode').value = '';
+            document.getElementById('classContent').value = '';
+
+            // 快速選取按鈕
+            const quickContainer = document.getElementById('quickClasses');
+            quickContainer.innerHTML = '';
+            quickClasses.forEach(code => {
+                const btn = document.createElement('button');
+                btn.className = 'quick-class-btn';
+                btn.textContent = code;
+                btn.onclick = (e) => { e.stopPropagation(); document.getElementById('classCode').value = code; };
+                quickContainer.appendChild(btn);
+            });
+
+            // 填充 datalist
+            const datalist = document.getElementById('classList');
+            datalist.innerHTML = '';
+            const allCodes = new Set(Object.values(scheduleData).flat().map(e => e.code));
+            [...allCodes, ...quickClasses].forEach(code => {
+                const option = document.createElement('option');
+                option.value = code;
+                datalist.appendChild(option);
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('editModal').classList.remove('show');
+            selectedDate = null;
+        }
+
+        function saveEntry() {
+            const code = document.getElementById('classCode').value.trim();
+            const content = document.getElementById('classContent').value.trim();
+            
+            if (!code || !content) {
+                alert('請輸入班級代號和課程內容');
+                return;
+            }
+
+            if (!scheduleData[selectedDate]) scheduleData[selectedDate] = [];
+            scheduleData[selectedDate].push({
+                code,
+                content,
+                createdAt: new Date().toISOString()
+            });
+            
+            saveData();
+            closeModal();
+            renderCalendar();
+        }
+
+        function deleteEntry(event, dateKey, index) {
+            event.stopPropagation();
+            if (confirm('確定要刪除此課程記錄嗎？')) {
+                scheduleData[dateKey].splice(index, 1);
+                if (scheduleData[dateKey].length === 0) delete scheduleData[dateKey];
+                saveData();
+                renderCalendar();
+            }
+        }
+
+        function renderStats() {
+            const stats = {};
+            Object.values(scheduleData).forEach(entries => {
+                entries.forEach(entry => {
+                    stats[entry.code] = (stats[entry.code] || 0) + 1;
+                });
+            });
+
+            const grid = document.getElementById('statsGrid');
+            grid.innerHTML = '';
+            
+            Object.entries(stats)
+                .sort((a, b) => b[1] - a[1])
+                .forEach(([code, count]) => {
+                    const item = document.createElement('div');
+                    item.className = 'stat-item';
+                    item.innerHTML = `<div class="code">${code}</div><div class="count">${count} 節課</div>`;
+                    grid.appendChild(item);
+                });
+        }
+
+        function exportData() {
+            const blob = new Blob([JSON.stringify(scheduleData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `課程進度備份_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (confirm('匯入將覆蓋現有資料，確定嗎？')) {
+                        scheduleData = imported;
+                        saveData();
+                        renderCalendar();
+                        alert('匯入成功！');
+                    }
+                } catch (err) {
+                    alert('檔案格式錯誤');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        // 點擊彈窗外部關閉
+        document.getElementById('editModal').onclick = (e) => {
+            if (e.target.classList.contains('modal')) closeModal();
+        };
+
+        init();
+    </script>
+</body>
+</html>
