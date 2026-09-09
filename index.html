@@ -198,11 +198,11 @@
     let editingDate = null;
     let tempEntries = [];
 
-    // ============ 雲端同步（Google Sheet via Apps Script） ============
-const CLOUD_SYNC = {
-    // 部署 Apps Script 後填入正式網址: https://script.google.com/macros/s/XXXX/exec
-    url: "https://script.google.com/macros/s/AKfycbzCDoAO2WihDGmfUl1-gr7LdctNaDAiMQVIhwU_w-691vgHYEoGWMXrQwIeefsGUmw/exec",
-    token: "j5zmhA9tnlhWsCPT9By63g"
+    // ============ 雲端同步（Firebase Realtime Database，免登入免授權） ============
+const CLOUD = {
+    // 填入你的 Firebase 資料庫 URL，例如 https://course-sync-default-rtdb.firebaseio.com
+    baseUrl: "__FIREBASE_URL__",
+    path: "courseData"
 };
 let cloudBusy = false;
 
@@ -214,7 +214,7 @@ function setCloudStatus(msg, cls) {
 }
 
 function cloudConfigured() {
-    return CLOUD_SYNC.url && CLOUD_SYNC.url !== "__CLOUD_URL__";
+    return CLOUD.baseUrl && CLOUD.baseUrl !== "__FIREBASE_URL__";
 }
 
 // 抓取雲端資料
@@ -222,12 +222,15 @@ async function cloudPull() {
     if (!cloudConfigured()) return null;
     setCloudStatus('☁️ 連線中...', 'busy');
     try {
-        const resp = await fetch(CLOUD_SYNC.url + '?op=get');
-        const j = await resp.json();
-        if (j.ok && j.data) {
-            const d = new Date(j.ts || Date.now());
-            setCloudStatus(`☁️ 已連線（雲端更新於 ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}）`, 'ok');
-            return j.data;
+        const resp = await fetch(`${CLOUD.baseUrl}/${CLOUD.path}.json`, { cache: 'no-store' });
+        if (!resp.ok) {
+            setCloudStatus('☁️ 連線失敗', 'error');
+            return null;
+        }
+        const data = await resp.json(); // null 或 {日期: [entries]}
+        if (data && Object.keys(data).length > 0) {
+            setCloudStatus('☁️ 已連線', 'ok');
+            return data;
         }
         setCloudStatus('☁️ 雲端無資料', 'busy');
         return null;
@@ -264,53 +267,35 @@ function mergeRemote(remote) {
     return added;
 }
 
-// 上傳到雲端（上傳後重新抓取驗證，顯示真實結果）
-function cloudPush() {
+// 上傳到雲端（Firebase 回應可讀，顯示真實結果）
+async function cloudPush() {
     if (!cloudConfigured() || cloudBusy) return;
     cloudBusy = true;
     setCloudStatus('☁️ 上傳中...', 'busy');
-    const snapshot = JSON.stringify(scheduleData);
-    const payload = JSON.stringify({ token: CLOUD_SYNC.token, data: scheduleData });
-    fetch(CLOUD_SYNC.url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: payload
-    }).finally(() => {
+    try {
+        const resp = await fetch(`${CLOUD.baseUrl}/${CLOUD.path}.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(scheduleData)
+        });
+        const t = new Date();
+        const hh = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+        if (resp.ok) {
+            setCloudStatus(`☁️ 已同步 ${hh}`, 'ok');
+        } else {
+            setCloudStatus(`☁️ 上傳失敗 (${resp.status})，請再試`, 'error');
+        }
+    } catch (err) {
+        setCloudStatus('☁️ 上傳失敗（網路錯誤），請再試', 'error');
+    } finally {
         cloudBusy = false;
-        // 稍等服务端写入，再抓回比对
-        setTimeout(async () => {
-            try {
-                const resp = await fetch(CLOUD_SYNC.url + '?op=get');
-                const j = await resp.json();
-                const got = j.data ? JSON.stringify(j.data) : null;
-                const t = new Date();
-                const hh = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
-                if (got === snapshot) {
-                    setCloudStatus(`☁️ 已同步 ${hh}`, 'ok');
-                } else if (got !== null) {
-                    // 云端有其它装置的新资料 → 自动合并后提示
-                    const added = mergeRemote(j.data);
-                    if (added > 0) {
-                        localStorage.setItem('courseScheduleData', JSON.stringify(scheduleData));
-                        renderCalendar();
-                        if (document.getElementById('statsModal').style.display === 'block') showStats();
-                    }
-                    setCloudStatus(`☁️ 云端有更新，已合并（再存一次会重传） ${hh}`, 'busy');
-                } else {
-                    setCloudStatus('☁️ 未成功：云端未更新，请按一次「☁️ 云端同步」重试', 'error');
-                }
-            } catch (err) {
-                setCloudStatus('☁️ 未成功：网络错误，请再试', 'error');
-            }
-        }, 2500);
-    });
+    }
 }
 
 // 手動同步：先抓後傳
 async function cloudSync() {
     if (!cloudConfigured()) {
-        alert('雲端同步尚未啟用，請稍後再試');
+        alert('雲端同步尚未啟用（Firebase 未設定）');
         return;
     }
     const remote = await cloudPull();
@@ -322,7 +307,7 @@ async function cloudSync() {
             renderCalendar();
         }
     }
-    cloudPush();
+    await cloudPush();
 }
 
 // 開頁面時自動合併雲端資料
@@ -339,7 +324,7 @@ async function autoCloudSync() {
     }
 }
 
-    document.addEventListener('DOMContentLoaded', () => { renderCalendar(); autoCloudSync(); });
+document.addEventListener('DOMContentLoaded', () => { renderCalendar(); autoCloudSync(); });
 
     function getClassColor(cid) { return classColors[cid] || '#e0e0e0'; }
 
