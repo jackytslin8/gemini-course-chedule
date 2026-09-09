@@ -264,11 +264,12 @@ function mergeRemote(remote) {
     return added;
 }
 
-// 上傳到雲端
+// 上傳到雲端（上傳後重新抓取驗證，顯示真實結果）
 function cloudPush() {
     if (!cloudConfigured() || cloudBusy) return;
     cloudBusy = true;
     setCloudStatus('☁️ 上傳中...', 'busy');
+    const snapshot = JSON.stringify(scheduleData);
     const payload = JSON.stringify({ token: CLOUD_SYNC.token, data: scheduleData });
     fetch(CLOUD_SYNC.url, {
         method: 'POST',
@@ -277,8 +278,32 @@ function cloudPush() {
         body: payload
     }).finally(() => {
         cloudBusy = false;
-        const t = new Date();
-        setCloudStatus(`☁️ 已同步 ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`, 'ok');
+        // 稍等服务端写入，再抓回比对
+        setTimeout(async () => {
+            try {
+                const resp = await fetch(CLOUD_SYNC.url + '?op=get');
+                const j = await resp.json();
+                const got = j.data ? JSON.stringify(j.data) : null;
+                const t = new Date();
+                const hh = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+                if (got === snapshot) {
+                    setCloudStatus(`☁️ 已同步 ${hh}`, 'ok');
+                } else if (got !== null) {
+                    // 云端有其它装置的新资料 → 自动合并后提示
+                    const added = mergeRemote(j.data);
+                    if (added > 0) {
+                        localStorage.setItem('courseScheduleData', JSON.stringify(scheduleData));
+                        renderCalendar();
+                        if (document.getElementById('statsModal').style.display === 'block') showStats();
+                    }
+                    setCloudStatus(`☁️ 云端有更新，已合并（再存一次会重传） ${hh}`, 'busy');
+                } else {
+                    setCloudStatus('☁️ 未成功：云端未更新，请按一次「☁️ 云端同步」重试', 'error');
+                }
+            } catch (err) {
+                setCloudStatus('☁️ 未成功：网络错误，请再试', 'error');
+            }
+        }, 2500);
     });
 }
 
