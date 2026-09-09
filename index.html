@@ -125,7 +125,11 @@
                 📤 匯入備份
                 <input type="file" accept=".json" onchange="importData(event)" style="display:none">
             </label>
+            <button class="btn-export" onclick="cloudSync()" style="background:#1abc9c; color:white;">☁️ 雲端同步</button>
             <button class="btn-stats" onclick="showStats()">📊 進度統計</button>
+        </div>
+        <div style="margin-top:8px; font-size:12px; color:#666; text-align:center;">
+            <span id="cloudStatus">☁️ 雲端：未連線</span>
         </div>
     </header>
 
@@ -194,7 +198,123 @@
     let editingDate = null;
     let tempEntries = [];
 
-    document.addEventListener('DOMContentLoaded', () => { renderCalendar(); });
+    // ============ 雲端同步（Google Sheet via Apps Script） ============
+const CLOUD_SYNC = {
+    // 部署 Apps Script 後填入正式網址: https://script.google.com/macros/s/XXXX/exec
+    url: "__CLOUD_URL__",
+    token: "j5zmhA9tnlhWsCPT9By63g"
+};
+let cloudBusy = false;
+
+function setCloudStatus(msg, cls) {
+    const el = document.getElementById('cloudStatus');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = cls === 'ok' ? '#1abc9c' : (cls === 'error' ? '#e74c3c' : (cls === 'busy' ? '#3498db' : '#888'));
+}
+
+function cloudConfigured() {
+    return CLOUD_SYNC.url && CLOUD_SYNC.url !== "__CLOUD_URL__";
+}
+
+// 抓取雲端資料
+async function cloudPull() {
+    if (!cloudConfigured()) return null;
+    setCloudStatus('☁️ 連線中...', 'busy');
+    try {
+        const resp = await fetch(CLOUD_SYNC.url + '?op=get');
+        const j = await resp.json();
+        if (j.ok && j.data) {
+            const d = new Date(j.ts || Date.now());
+            setCloudStatus(`☁️ 已連線（雲端更新於 ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}）`, 'ok');
+            return j.data;
+        }
+        setCloudStatus('☁️ 雲端無資料', 'busy');
+        return null;
+    } catch (err) {
+        setCloudStatus('☁️ 連線失敗，請稍後再試', 'error');
+        return null;
+    }
+}
+
+// 把遠端資料合併進本地（新日期新增、同日期按 班級+內容 去重合併）
+function mergeRemote(remote) {
+    if (!remote || typeof remote !== 'object') return 0;
+    let added = 0;
+    for (const dateKey of Object.keys(remote)) {
+        const entries = Array.isArray(remote[dateKey]) ? remote[dateKey] : [];
+        if (!scheduleData[dateKey]) scheduleData[dateKey] = [];
+        for (const entry of entries) {
+            const eKey = JSON.stringify([
+                entry.classId !== undefined ? entry.classId : entry.code,
+                entry.text !== undefined ? entry.text : entry.content
+            ]);
+            const exists = scheduleData[dateKey].some(x =>
+                JSON.stringify([
+                    x.classId !== undefined ? x.classId : x.code,
+                    x.text !== undefined ? x.text : x.content
+                ]) === eKey
+            );
+            if (!exists) {
+                scheduleData[dateKey].push(entry);
+                added++;
+            }
+        }
+    }
+    return added;
+}
+
+// 上傳到雲端
+function cloudPush() {
+    if (!cloudConfigured() || cloudBusy) return;
+    cloudBusy = true;
+    setCloudStatus('☁️ 上傳中...', 'busy');
+    const payload = JSON.stringify({ token: CLOUD_SYNC.token, data: scheduleData });
+    fetch(CLOUD_SYNC.url, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: payload
+    }).finally(() => {
+        cloudBusy = false;
+        const t = new Date();
+        setCloudStatus(`☁️ 已同步 ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`, 'ok');
+    });
+}
+
+// 手動同步：先抓後傳
+async function cloudSync() {
+    if (!cloudConfigured()) {
+        alert('雲端同步尚未啟用，請稍後再試');
+        return;
+    }
+    const remote = await cloudPull();
+    if (remote) {
+        const added = mergeRemote(remote);
+        if (added > 0) {
+            localStorage.setItem('courseScheduleData', JSON.stringify(scheduleData));
+            if (document.getElementById('statsModal').style.display === 'block') showStats();
+            renderCalendar();
+        }
+    }
+    cloudPush();
+}
+
+// 開頁面時自動合併雲端資料
+async function autoCloudSync() {
+    if (!cloudConfigured()) return;
+    const remote = await cloudPull();
+    if (remote) {
+        const added = mergeRemote(remote);
+        if (added > 0) {
+            localStorage.setItem('courseScheduleData', JSON.stringify(scheduleData));
+            if (document.getElementById('statsModal').style.display === 'block') showStats();
+            renderCalendar();
+        }
+    }
+}
+
+    document.addEventListener('DOMContentLoaded', () => { renderCalendar(); autoCloudSync(); });
 
     function getClassColor(cid) { return classColors[cid] || '#e0e0e0'; }
 
@@ -294,6 +414,7 @@
         if (validEntries.length > 0) scheduleData[editingDate] = validEntries;
         else delete scheduleData[editingDate];
         localStorage.setItem('courseScheduleData', JSON.stringify(scheduleData));
+        cloudPush(); // 自動上傳雲端
         closeModal(); renderCalendar();
     }
 
