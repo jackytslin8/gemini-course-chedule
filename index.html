@@ -127,6 +127,7 @@
             </label>
             <button class="btn-export" onclick="cloudSync()" style="background:#1abc9c; color:white;">☁️ 雲端同步</button>
             <button class="btn-stats" onclick="showStats()">📊 進度統計</button>
+            <button class="btn-stats" onclick="showProgressOverview()" style="background:#e67e22;">📋 進度掌握</button>
         </div>
         <div style="margin-top:8px; font-size:12px; color:#666; text-align:center;">
             <span id="cloudStatus">☁️ 雲端：未連線</span>
@@ -175,6 +176,16 @@
         <div id="statsList" class="stats-grid"></div>
         <div class="modal-actions" style="justify-content: flex-end;">
             <button class="btn-cancel" onclick="closeStats()">關閉</button>
+        </div>
+    </div>
+</div>
+
+<div id="progressModal" class="modal">
+    <div class="modal-content" style="max-width:640px;">
+        <h2>📋 各班級最新進度</h2>
+        <div id="progressList" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin:16px 0;"></div>
+        <div class="modal-actions" style="justify-content: flex-end;">
+            <button class="btn-cancel" onclick="closeProgress()">關閉</button>
         </div>
     </div>
 </div>
@@ -447,6 +458,36 @@
 
     function closeStats() { document.getElementById('statsModal').style.display = 'none'; }
 
+    function showProgressOverview() {
+        // 每個班級找「最新日期」的那筆備註
+        const latest = {};
+        for (const date in scheduleData) {
+            scheduleData[date].forEach(entry => {
+                const cid = entry.classId.trim();
+                if (cid && (!latest[cid] || date > latest[cid].date)) {
+                    latest[cid] = { date: date, text: entry.text };
+                }
+            });
+        }
+        const sorted = Object.entries(latest).sort((a, b) => a[0].localeCompare(b[0]));
+        const list = document.getElementById('progressList');
+        if (sorted.length === 0) {
+            list.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:#999;">目前尚無任何進度紀錄。</p>';
+        } else {
+            list.innerHTML = sorted.map(([cid, info]) => `
+                <div class="stat-card" style="text-align:left; padding:14px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                        <span class="class-badge" style="background:${getClassColor(cid)}; font-size:15px; padding:4px 10px;">${cid}</span>
+                        <span style="font-size:11px; color:#95a5a6;">${info.date}</span>
+                    </div>
+                    <div style="font-size:14px; color:#555; word-break:break-word; min-height:20px;">${info.text || '（無內容）'}</div>
+                </div>
+            `).join('');
+        }
+        document.getElementById('progressModal').style.display = 'flex';
+    }
+    function closeProgress() { document.getElementById('progressModal').style.display = 'none'; }
+
     function exportData() {
         const blob = new Blob([JSON.stringify(scheduleData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -478,6 +519,7 @@
     window.onclick = function(event) {
         if (event.target === document.getElementById('editModal')) closeModal();
         if (event.target === document.getElementById('statsModal')) closeStats();
+        if (event.target === document.getElementById('progressModal')) closeProgress();
     }
 </script>
 </body>
