@@ -69,7 +69,9 @@
         .day { background-color: white; min-height: 120px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; transition: background 0.2s; }
         .day:hover { background-color: #fafbfc; }
         .day.empty { background-color: #f8f9fa; cursor: default; }
-        .day.weekend { background-color: #fafafa; }
+        .day.weekend { background-color: #f5f5f5; }
+        .day.holiday { background-color: #ffebee; }
+        .day.holiday.weekend { background-color: #ffcdd2; }
         
         .day-top-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
         
@@ -214,6 +216,17 @@
     } else {
         scheduleData = (_parsedData && typeof _parsedData === 'object') ? _parsedData : {};
     }
+    // 二十四節氣（用於排除節氣，只留真正節日）
+    const solarTerms = new Set(['立春','雨水','驚蟄','春分','清明','穀雨','立夏','小滿','芒種','夏至','小暑','大暑','立秋','處暑','白露','秋分','寒露','霜降','立冬','小雪','大雪','冬至','小寒','大寒']);
+
+    // 判斷是否為國定假日/節日（lunarData 中以空格分隔節氣與節日，排除節氣後即為節日）
+    function isNationalHoliday(dateStr) {
+        const lunarText = lunarData[dateStr] || '';
+        if (!lunarText.includes(' ')) return false;
+        const parts = lunarText.trim().split(/\s+/);
+        return !solarTerms.has(parts[parts.length - 1]);
+    }
+
     let currentMonthIdx = 0;
     let editingDate = null;
     let tempEntries = [];
@@ -369,7 +382,9 @@
             ).join('');
 
             const isWeekend = (startOffset + day - 1) % 7 >= 5;
+            const isHoliday = isNationalHoliday(dateStr);
             const weekendClass = isWeekend ? 'weekend' : '';
+            const holidayClass = isHoliday ? 'holiday' : '';
             const todayClass = dateStr === todayStr ? 'today' : '';
 
             // 農曆與節日標籤處理
@@ -378,7 +393,7 @@
             const lunarHtml = lunarText ? `<span class="lunar-date ${hasHoliday ? 'holiday' : ''}">${lunarText}</span>` : '';
 
             grid.innerHTML += `
-                <div class="day ${weekendClass} ${todayClass}" onclick="openModal('${dateStr}')">
+                <div class="day ${weekendClass} ${holidayClass} ${todayClass}" onclick="openModal('${dateStr}')">
                     <div class="day-top-bar">
                         <span class="day-num">${day}</span>
                         ${lunarHtml}
