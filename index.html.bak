@@ -61,9 +61,10 @@
 
         .calendar-wrapper { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; box-shadow: 0 0 0 1px var(--border-color); }
         .calendar-container { min-width: 800px; }
-        .calendar-header { display: grid; grid-template-columns: repeat(5, 1fr); background-color: var(--primary-color); color: white; font-weight: bold; text-align: center; }
-        .calendar-header div { padding: 12px; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(5, 1fr); background-color: var(--border-color); gap: 1px; }
+        .calendar-header { display: grid; grid-template-columns: repeat(7, 1fr); background-color: var(--primary-color); color: white; font-weight: bold; text-align: center; }
+        .calendar-header div { padding: 12px; border-right: 1px solid rgba(255,255,255,0.2); }
+        .calendar-header div:last-child { border-right: none; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); background-color: var(--border-color); gap: 1px; }
 
         .day { background-color: white; min-height: 120px; padding: 8px; cursor: pointer; display: flex; flex-direction: column; transition: background 0.2s; }
         .day:hover { background-color: #fafbfc; }
@@ -140,7 +141,7 @@
     <div class="calendar-wrapper">
         <div class="calendar-container">
             <div class="calendar-header">
-                <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div>
+                <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
         </div>
@@ -360,25 +361,17 @@
         grid.innerHTML = '';
 
         const firstDay = new Date(year, month - 1, 1).getDay();
-        // 星期一=1，星期日=0；讓本月 1 號對到正確的星期欄位
-        // 原本：startOffset 決定前面空幾格（0~6）；改成：直接算出星期幾
-        const startOffset = (firstDay === 0 ? 7 : firstDay) - 1; // 0=一, ..., 4=五
+        const startOffset = firstDay === 0 ? 6 : firstDay - 1;
         const daysInMonth = new Date(year, month, 0).getDate();
 
         const now = new Date();
         const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-        // 填前面的空白格（月 1 號落在週三→在週一、週二插兩個空格）
         for (let i = 0; i < startOffset; i++) {
             grid.innerHTML += `<div class="day empty"></div>`;
         }
 
         for (let day = 1; day <= daysInMonth; day++) {
-            // 算出這一天是星期幾（0=一, 1=二, ..., 6=日）
-            const weekday = (startOffset + day - 1) % 7;
-            // 週末跳過不顯示
-            if (weekday >= 5) continue;
-
             const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
             const dayData = scheduleData[dateStr] || [];
             
@@ -388,7 +381,9 @@
                 </div>`
             ).join('');
 
+            const isWeekend = (startOffset + day - 1) % 7 >= 5;
             const isHoliday = isNationalHoliday(dateStr);
+            const weekendClass = isWeekend ? 'weekend' : '';
             const holidayClass = isHoliday ? 'holiday' : '';
             const todayClass = dateStr === todayStr ? 'today' : '';
 
@@ -398,7 +393,7 @@
             const lunarHtml = lunarText ? `<span class="lunar-date ${hasHoliday ? 'holiday' : ''}">${lunarText}</span>` : '';
 
             grid.innerHTML += `
-                <div class="day ${holidayClass} ${todayClass}" onclick="openModal('${dateStr}')">
+                <div class="day ${weekendClass} ${holidayClass} ${todayClass}" onclick="openModal('${dateStr}')">
                     <div class="day-top-bar">
                         <span class="day-num">${day}</span>
                         ${lunarHtml}
